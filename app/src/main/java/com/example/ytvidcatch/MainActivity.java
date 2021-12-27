@@ -25,6 +25,7 @@ public class MainActivity extends AppCompatActivity {
     Button downloadB;
     DownloadManager manager;
 
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -35,7 +36,7 @@ public class MainActivity extends AppCompatActivity {
         } catch (YoutubeDLException e) {
             Log.e("TAG", "failed to initialize youtubedl-android", e);
         }
-        //findViewById(R.id.downloadBtn).setEnabled(false);
+        findViewById(R.id.downloadBtn).setEnabled(false);
         findViewById(R.id.downloadBtn).setOnClickListener(v -> {
             if (!CanDownload) {
                 Toast toast = Toast.makeText(getApplicationContext(), "Brak możliwości Pobrania!", Toast.LENGTH_LONG);
@@ -51,8 +52,6 @@ public class MainActivity extends AppCompatActivity {
             }
             Downloader d = new Downloader(isAudio,kod);
             d.execute();
-            //Download(isAudio,kod);
-
         });
         Intent intent = getIntent();
         String action = intent.getAction();
@@ -62,10 +61,16 @@ public class MainActivity extends AppCompatActivity {
         }
 
     }
-
-    public String kod = "9XaS93WMRQQ";
-    public Boolean CanDownload = true;
-
+    @Override
+    protected void onPause() {
+        super.onPause();
+        if(!CanDownload&!Downloading){
+            finish();
+        }
+    }
+    public String kod = "NULL";
+    public Boolean CanDownload = false;
+    public Boolean Downloading = false;
     void handleSendText(Intent intent) {
         String sharedText = intent.getStringExtra(Intent.EXTRA_TEXT);
         TextView t = (TextView) findViewById(R.id.text);
@@ -100,6 +105,8 @@ public class MainActivity extends AppCompatActivity {
 
     }
     void Download(Boolean isAudio, String code){
+        CanDownload = false;
+        Downloading = true;
         File youtubeDLDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "youtubedl-android");
         YoutubeDLRequest request = new YoutubeDLRequest("https://www.youtube.com/watch?v="+code);
         if(isAudio){
@@ -112,7 +119,6 @@ public class MainActivity extends AppCompatActivity {
         request.addOption("-o", Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)+ "/%(title)s.%(ext)s");
         try {
             YoutubeDL.getInstance().execute(request, (progress, etaInSeconds) -> {
-                //System.out.println(String.valueOf(progress) + "% (ETA " + String.valueOf(etaInSeconds) + " seconds)");
                 runOnUiThread(new Runnable() {
                     public void run(){
                         TextView t = (TextView) findViewById(R.id.text);
@@ -126,8 +132,9 @@ public class MainActivity extends AppCompatActivity {
                     t.setText("Gotowe!");
                 }
             });
+            Downloading= false;
         } catch (YoutubeDLException | InterruptedException e) {
-            //e.printStackTrace();
+            e.printStackTrace();
         }
     }
 
