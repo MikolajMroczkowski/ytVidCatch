@@ -1,32 +1,24 @@
 package com.example.ytvidcatch;
 
-import static android.os.Environment.DIRECTORY_DOWNLOADS;
-
-import androidx.appcompat.app.AppCompatActivity;
-
 import android.app.DownloadManager;
-import android.content.Context;
 import android.content.Intent;
-import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Environment;
 import android.util.Log;
-import android.view.View;
 import android.widget.Button;
 import android.widget.RadioGroup;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import java.io.IOException;
-import java.util.concurrent.TimeUnit;
+import androidx.appcompat.app.AppCompatActivity;
 
-import okhttp3.Call;
-import okhttp3.Callback;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.Response;
-import okhttp3.ResponseBody;
+import com.yausername.ffmpeg.FFmpeg;
+import com.yausername.youtubedl_android.YoutubeDL;
+import com.yausername.youtubedl_android.YoutubeDLException;
+import com.yausername.youtubedl_android.YoutubeDLRequest;
+
+import java.io.File;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -37,19 +29,29 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        findViewById(R.id.downloadBtn).setEnabled(false);
+        try {
+            YoutubeDL.getInstance().init(getApplicationContext());
+            FFmpeg.getInstance().init(getApplication());
+        } catch (YoutubeDLException e) {
+            Log.e("TAG", "failed to initialize youtubedl-android", e);
+        }
+        //findViewById(R.id.downloadBtn).setEnabled(false);
         findViewById(R.id.downloadBtn).setOnClickListener(v -> {
             if (!CanDownload) {
                 Toast toast = Toast.makeText(getApplicationContext(), "Brak możliwości Pobrania!", Toast.LENGTH_LONG);
                 toast.show();
                 return;
             }
+            TextView t = (TextView) findViewById(R.id.text);
+            t.setText("Pobieram...");
             RadioGroup rg = (RadioGroup) findViewById(R.id.radioGroup);
-            String fileType = "mp3";
+            Boolean isAudio = true;
             if (rg.getCheckedRadioButtonId() == R.id.video) {
-                fileType = "mp4";
+                isAudio = false;
             }
-            run(kod, fileType);
+            Downloader d = new Downloader(isAudio,kod);
+            d.execute();
+            //Download(isAudio,kod);
 
         });
         Intent intent = getIntent();
@@ -58,10 +60,11 @@ public class MainActivity extends AppCompatActivity {
         if (Intent.ACTION_SEND.equals(action) && type != null) {
             handleSendText(intent);
         }
+
     }
 
-    public String kod = "NULL";
-    public Boolean CanDownload = false;
+    public String kod = "9XaS93WMRQQ";
+    public Boolean CanDownload = true;
 
     void handleSendText(Intent intent) {
         String sharedText = intent.getStringExtra(Intent.EXTRA_TEXT);
@@ -82,56 +85,50 @@ public class MainActivity extends AppCompatActivity {
             toast.show();
         }
     }
+    public class Downloader extends AsyncTask<Void, Void, Void> {
+        Boolean isAudio;
+        String code;
+        public Downloader(Boolean isAudio,String code){
+            this.isAudio = isAudio;
+            this.code = code;
+        }
+        @Override
+        protected Void doInBackground(Void... arg0) {
+            Download(isAudio,code);
+            return null;
+        }
 
-    void run(String code, String filetype) {
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                Toast toast = Toast.makeText(getApplicationContext(), "Przygotowanie...", Toast.LENGTH_LONG);
-                toast.show();
-            }
-        });
-        OkHttpClient client = new OkHttpClient.Builder().connectTimeout(
-                10, TimeUnit.MINUTES).writeTimeout(10, TimeUnit.SECONDS).readTimeout(30, TimeUnit.MINUTES).build();
-        Request get = new Request.Builder()
-                .url("https://e-buda.eu/ytdlapi/download.php?code=" + code + "&type=" + filetype)
-                .build();
-
-        client.newCall(get).enqueue(new Callback() {
-            @Override
-            public void onFailure(Call call, IOException e) {
-                e.printStackTrace();
-            }
-
-            @Override
-            public void onResponse(Call call, Response response) {
-                try {
-                    ResponseBody responseBody = response.body();
-                    if (!response.isSuccessful()) {
-                        throw new IOException("Unexpected code " + response);
+    }
+    void Download(Boolean isAudio, String code){
+        File youtubeDLDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "youtubedl-android");
+        YoutubeDLRequest request = new YoutubeDLRequest("https://www.youtube.com/watch?v="+code);
+        if(isAudio){
+            request.addOption("--extract-audio");
+            request.addOption("--audio-format","mp3");
+        }
+        else{
+            request.addOption("-f","bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4");
+        }
+        request.addOption("-o", Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)+ "/%(title)s.%(ext)s");
+        try {
+            YoutubeDL.getInstance().execute(request, (progress, etaInSeconds) -> {
+                //System.out.println(String.valueOf(progress) + "% (ETA " + String.valueOf(etaInSeconds) + " seconds)");
+                runOnUiThread(new Runnable() {
+                    public void run(){
+                        TextView t = (TextView) findViewById(R.id.text);
+                        t.setText(String.valueOf(progress) + "% (ETA " + String.valueOf(etaInSeconds) + " seconds)");
                     }
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            Toast toast = Toast.makeText(getApplicationContext(), "Pobieranie..."+Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS).getPath(), Toast.LENGTH_LONG);
-                            toast.show();
-                        }
-                    });
-                    DownloadManager downloadManager = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
-                    DownloadManager.Request request = new DownloadManager.Request(Uri.parse(responseBody.string()));
-                    request.setTitle(code + "." + filetype)
-                            .setDescription("File is downloading...")
-                            .setDestinationInExternalPublicDir(
-                                    Environment.DIRECTORY_DOWNLOADS, code + "." + filetype)
-                            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-                    downloadManager.enqueue(request);
-                } catch (Exception e) {
-                    e.printStackTrace();
+                });
+            });
+            runOnUiThread(new Runnable() {
+                public void run(){
+                    TextView t = (TextView) findViewById(R.id.text);
+                    t.setText("Gotowe!");
                 }
-            }
-        });
-
-
+            });
+        } catch (YoutubeDLException | InterruptedException e) {
+            //e.printStackTrace();
+        }
     }
 
 }
