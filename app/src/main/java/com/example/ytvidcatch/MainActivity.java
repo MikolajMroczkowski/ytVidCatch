@@ -75,16 +75,10 @@ public class MainActivity extends AppCompatActivity {
         String sharedText = intent.getStringExtra(Intent.EXTRA_TEXT);
         TextView t = (TextView) findViewById(R.id.text);
         if (sharedText != null) {
-            if (sharedText.contains("https://youtu.be/") & sharedText.length() == 28) {
-                CanDownload = true;
-                kod = sharedText.substring(17);
-                findViewById(R.id.downloadBtn).setEnabled(true);
-                t.setText("Gotowe do pobrania!");
-            } else {
-                Toast toast = Toast.makeText(getApplicationContext(), "Treść nie pochodzi z YT", Toast.LENGTH_LONG);
-                toast.show();
-                t.setText("Błąd Interpretacji!\nWprowadź treść z platformy youtube");
-            }
+            CanDownload = true;
+            kod = sharedText;
+            findViewById(R.id.downloadBtn).setEnabled(true);
+            t.setText("Gotowe do pobrania!");
         } else {
             Toast toast = Toast.makeText(getApplicationContext(), "Brak udostępnionej treści", Toast.LENGTH_LONG);
             toast.show();
@@ -108,7 +102,7 @@ public class MainActivity extends AppCompatActivity {
         CanDownload = false;
         Downloading = true;
         File youtubeDLDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "youtubedl-android");
-        YoutubeDLRequest request = new YoutubeDLRequest("https://www.youtube.com/watch?v="+code);
+        YoutubeDLRequest request = new YoutubeDLRequest(code);
         if(isAudio){
             request.addOption("--extract-audio");
             request.addOption("--audio-format","mp3");
